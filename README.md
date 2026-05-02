@@ -141,6 +141,43 @@ See `.env.example` for all required variables including:
 
 See `/infra/` for step-by-step setup guides for EC2, RDS, S3, and CloudFront.
 
+## Screenshots
+
+### KYC Verification
+Users submit their full name, date of birth, and a government ID document. The rule engine instantly approves or rejects the submission — no manual review required. Approved users receive an updated JWT so the KYC gate lifts immediately without a logout.
+
+![KYC Verification Form](docs/screenshots/kyc-verification.png)
+
+---
+
+### Marketplace
+KYC-verified buyers browse live product listings created by sellers. Each card shows the product name, price, and seller. Unverified users are blocked at the route level and redirected to the KYC flow.
+
+![Marketplace Products Page](docs/screenshots/marketplace.png)
+
+---
+
+### Transaction Flagging (NEW_ACCOUNT Rule)
+When a buyer completes a purchase, every transaction passes through the flag engine. Here the `NEW_ACCOUNT` rule fires because the buyer's account is less than 1 hour old. The transaction is held in `flagged` status for admin review rather than auto-rejected — consistent with real compliance workflows.
+
+![Product Detail with NEW_ACCOUNT Flag](docs/screenshots/product-detail-flag.png)
+
+---
+
+### Admin Flag Review Queue
+Admins see all flagged transactions in a paginated queue showing the triggered rule, buyer, amount, and timestamp. Each entry can be resolved as `completed` (approve) or `cancelled` (reject), which updates both the flag record and the transaction status in a single database transaction.
+
+![Admin Flag Review Queue](docs/screenshots/admin-flag-queue.png)
+
+---
+
+### Admin Audit Log
+Every state-changing action — logins, KYC submissions, purchases, flag resolutions, and admin decisions — is recorded in an append-only audit log. The log is filterable by user and action type. No update or delete routes exist for this table.
+
+![Admin Audit Log](docs/screenshots/admin-audit-log.png)
+
+---
+
 ## Compliance Design Decisions
 
 See `/docs/architecture.md` for rationale behind the audit log design, KYC flow, and why transactions are flagged rather than auto-rejected.

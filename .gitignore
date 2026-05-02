@@ -30,3 +30,13 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Claude Code
+CLAUDE.md
+.claude/
+
+# Secrets / keys
+*.pem
+
+# Local uploads
+server/uploads/
