@@ -20,17 +20,64 @@ Standard marketplaces let anyone transact freely. This platform enforces complia
 
 ## Architecture Overview
 
+```mermaid
+graph TB
+    subgraph Browser["User Browser"]
+        USER(["User"])
+    end
+
+    subgraph CDN["AWS CloudFront"]
+        CF["CloudFront CDN\nd1m77dqkv0dd5y.cloudfront.net"]
+    end
+
+    subgraph StaticHost["AWS S3 — Static Hosting"]
+        S3_STATIC["S3 Bucket\nReact / Vite Build"]
+    end
+
+    subgraph Compute["AWS EC2  t3.micro"]
+        NGINX["nginx\nReverse Proxy  :443"]
+        EXPRESS["Express.js\nPM2 fork mode"]
+    end
+
+    subgraph DB["AWS RDS  db.t3.micro"]
+        PG[("PostgreSQL\nprivate subnet\nEC2 SG access only")]
+    end
+
+    subgraph KYCStore["AWS S3 — KYC Docs"]
+        S3_KYC["S3 Bucket\nKYC Documents\nprivate — presigned URLs only"]
+    end
+
+    USER -->|"HTTPS"| CF
+    CF -->|"/* — static assets"| S3_STATIC
+    CF -->|"/api/* — proxy"| NGINX
+    NGINX --> EXPRESS
+    EXPRESS -->|"SQL via pg Pool"| PG
+    EXPRESS -->|"generate presigned URL"| S3_KYC
+    USER -->|"PUT direct upload\nusing presigned URL"| S3_KYC
 ```
-[React Frontend] — CloudFront + S3
-        |
-        | HTTPS (REST API)
-        |
-[Express Backend] — EC2
-        |
-   _____|_____
-  |           |
-[RDS]       [S3]
-PostgreSQL  KYC Docs
+
+### Request Pipeline
+
+Every protected route passes through this middleware chain before reaching the controller:
+
+```mermaid
+flowchart LR
+    REQ(["Incoming\nRequest"]) --> jwtAuth
+
+    jwtAuth -->|"no / bad token"| E1(["401 Unauthorized"])
+    jwtAuth --> requireKYC
+
+    requireKYC -->|"kyc_status ≠ approved"| E2(["403 KYC Required"])
+    requireKYC --> requireRole
+
+    requireRole -->|"wrong role"| E3(["403 Forbidden"])
+    requireRole --> Controller["Controller"]
+
+    Controller --> FlagEngine["Flag Engine\nHIGH_VALUE · VELOCITY\nSAME_IP · NEW_ACCOUNT"]
+    FlagEngine -->|"no rules match"| Done(["status: completed"])
+    FlagEngine -->|"any rule matches"| Flagged(["status: flagged\nadmin review queue"])
+
+    Controller --> Audit["Audit Logger\nappend-only · post-response\nnon-blocking"]
 ```
 
 ## Core Features
